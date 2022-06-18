@@ -50,6 +50,8 @@ public:
 
 	int nMousePosX = 0;
 	int nMousePosY = 0;
+
+	float fDeltaTime;
 	
 	wstring AppName = L"Game Engine";
 
@@ -86,21 +88,26 @@ public:
 
 		// Add this later for a closing method.
 		//SetConsoleCtrlHandler();
+		SetConsoleCtrlHandler((PHANDLER_ROUTINE)CloseHandler, TRUE);
+
+		// Check for max size.
+		CONSOLE_SCREEN_BUFFER_INFO cScreenB;
+		if (!GetConsoleScreenBufferInfo(hConsole, &cScreenB)) return;
+		if (nScreenHeight > cScreenB.dwMaximumWindowSize.Y || nScreenWidth > cScreenB.dwMaximumWindowSize.X) return;
 	}
 
 	GameEngine()
 	{
-		// Create the buffer which we use to draw onto.
 		ScreenBuffer = new CHAR_INFO[nScreenWidth * nScreenHeight];
 		memset(ScreenBuffer, 0, sizeof(CHAR_INFO) * nScreenWidth * nScreenHeight);
 
+
 		// Grab the console.
+		hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 		hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
 		// Initialize rendering
 		Setup();
-
-		Draw(5, 5, EWHITE);
 	}
 
 	~GameEngine()
@@ -120,14 +127,31 @@ public:
 private:
 	CHAR_INFO* ScreenBuffer;
 	HANDLE hConsole;
+	HANDLE hConsoleComing;
 	SMALL_RECT sRectWindow;
 
 	void Setup()
 	{
+		auto CurTime = std::chrono::system_clock::now();
+		auto CheckTime = std::chrono::system_clock::now();
+
 		while (true)
 		{
-			WriteConsoleOutput(hConsole, ScreenBuffer, { (short)nScreenWidth, (short)nScreenHeight }, { 0,0 }, &sRectWindow);
+				// Delta time / Elapsed Time
+				CurTime = std::chrono::system_clock::now();
+				std::chrono::duration<float> elapsedTime = CheckTime - CurTime;
+				CurTime = CheckTime;
+				fDeltaTime = elapsedTime.count();
+
+				wchar_t Title[256];
+				swprintf_s(Title, 256, L"%s | FPS: %0.0f", AppName.c_str(), (1.0f / fDeltaTime) * -1);
+				SetConsoleTitle(Title);
+				WriteConsoleOutput(hConsole, ScreenBuffer, { (short)nScreenWidth, (short)nScreenHeight }, { 0,0 }, &sRectWindow);
 		}
 	}
 protected:
+	static BOOL CloseHandler(DWORD evt)
+	{
+		return true;
+	}
 };
