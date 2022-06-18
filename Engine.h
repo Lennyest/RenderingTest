@@ -3,6 +3,7 @@
 #include <iostream>
 #include <thread>
 #include <windows.h>
+#include <mutex>
 
 using std::wstring;
 
@@ -45,8 +46,8 @@ enum COLOR
 class GameEngine
 {
 public:
-	int nScreenWidth = 50;
-	int nScreenHeight = 50;
+	short nScreenWidth = 50;
+	short nScreenHeight = 50;
 
 	int nMousePosX = 0;
 	int nMousePosY = 0;
@@ -55,17 +56,17 @@ public:
 	
 	wstring AppName = L"Game Engine";
 
-	void ConstructConsole(int _width, int _height)
+	void ConstructConsole(short width, short height)
 	{
 		if (hConsole == INVALID_HANDLE_VALUE) return;
 
-		nScreenHeight = _height;
-		nScreenWidth = _width;
+		nScreenHeight = height;
+		nScreenWidth = width;
 
 		sRectWindow = { 0, 0, 1, 1 };
 		SetConsoleWindowInfo(hConsole, TRUE, &sRectWindow);
 
-		COORD coord = { (short)nScreenWidth, (short)nScreenHeight };
+		COORD coord = { nScreenWidth, nScreenHeight };
 		if (!SetConsoleScreenBufferSize(hConsole, coord)) return;
 		if (!SetConsoleActiveScreenBuffer(hConsole)) return;
 
@@ -80,13 +81,10 @@ public:
 		wcscpy_s(ConsoleFont.FaceName, L"Consolas");
 
 		// Set the window size.
-		sRectWindow = { 0, 0, (short)nScreenWidth - 1, (short)nScreenHeight - 1 };
+		sRectWindow = { 0, 0, nScreenWidth, nScreenHeight };
 		if (!SetConsoleWindowInfo(hConsole, TRUE, &sRectWindow)) return;
 
-		// Enable mouse input.
-		if (!SetConsoleMode(hConsole, ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT)) return;
-
-		// Add this later for a closing method.
+		// Run this when we stop.
 		//SetConsoleCtrlHandler();
 		SetConsoleCtrlHandler((PHANDLER_ROUTINE)CloseHandler, TRUE);
 
@@ -96,14 +94,22 @@ public:
 		if (nScreenHeight > cScreenB.dwMaximumWindowSize.Y || nScreenWidth > cScreenB.dwMaximumWindowSize.X) return;
 	}
 
+	void Start()
+	{
+		// Start the thread
+		m_bAtomActive = true;
+		std::thread thread = std::thread(&GameEngine::Setup, this);
+
+		// Wait for thread to be exited
+		thread.join();
+	}
+
 	GameEngine()
 	{
 		ScreenBuffer = new CHAR_INFO[nScreenWidth * nScreenHeight];
 		memset(ScreenBuffer, 0, sizeof(CHAR_INFO) * nScreenWidth * nScreenHeight);
 
-
 		// Grab the console.
-		hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 		hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
 		// Initialize rendering
@@ -129,29 +135,46 @@ private:
 	HANDLE hConsole;
 	HANDLE hConsoleComing;
 	SMALL_RECT sRectWindow;
+	bool Playing;
 
 	void Setup()
 	{
 		auto CurTime = std::chrono::system_clock::now();
 		auto CheckTime = std::chrono::system_clock::now();
 
-		while (true)
+		while (m_bAtomActive)
 		{
-				// Delta time / Elapsed Time
-				CurTime = std::chrono::system_clock::now();
-				std::chrono::duration<float> elapsedTime = CheckTime - CurTime;
-				CurTime = CheckTime;
-				fDeltaTime = elapsedTime.count();
+			// Delta time / Elapsed Time
+			CurTime = std::chrono::system_clock::now();
+			std::chrono::duration<float> elapsedTime = CheckTime - CurTime;
+			CurTime = CheckTime;
+			fDeltaTime = elapsedTime.count();
 
-				wchar_t Title[256];
-				swprintf_s(Title, 256, L"%s | FPS: %0.0f", AppName.c_str(), (1.0f / fDeltaTime) * -1);
-				SetConsoleTitle(Title);
-				WriteConsoleOutput(hConsole, ScreenBuffer, { (short)nScreenWidth, (short)nScreenHeight }, { 0,0 }, &sRectWindow);
+			wchar_t Title[256];
+			swprintf_s(Title, 256, L"%s | FPS: %0.0f", AppName.c_str(), (1.0f / fDeltaTime) * -1);
+			SetConsoleTitle(Title);
+			WriteConsoleOutput(hConsole, ScreenBuffer, { nScreenWidth, nScreenHeight }, { 0,0 }, &sRectWindow);
 		}
 	}
 protected:
+	static std::atomic<bool> m_bAtomActive;
+	static std::condition_variable m_cvGameFinished;
+	static std::mutex m_muxGame;
+
 	static BOOL CloseHandler(DWORD evt)
 	{
+		if (evt == CTRL_CLOSE_EVENT)
+		{
+			m_bAtomActive = false;
+
+			// Wait for thread to be exited
+			std::unique_lock<std::mutex> ul(m_muxGame);
+			m_cvGameFinished.wait(ul);
+		}
 		return true;
 	}
 };
+
+std::atomic<bool> GameEngine::m_bAtomActive(false);
+std::condition_variable GameEngine::m_cvGameFinished;
+std::mutex GameEngine::m_muxGame;

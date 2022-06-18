@@ -14,12 +14,6 @@ public:
 int main()
 {
     GameTest game;
-    game.ConstructConsole(160, 100);
-
-    while (true)
-    {
-        game.Draw(1, 1);
-    }
-
-    std::cout << "Hello World!\n";
+    game.ConstructConsole(256, 256);
+    game.Start();
 }
