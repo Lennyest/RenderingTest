@@ -53,10 +53,42 @@ public:
 	
 	wstring AppName = L"Game Engine";
 
+	void ConstructConsole(int _width, int _height)
+	{
+		if (hConsole == INVALID_HANDLE_VALUE) return;
+
+		nScreenHeight = _height;
+		nScreenWidth = _width;
+
+		sRectWindow = { 0, 0, 1, 1 };
+		SetConsoleWindowInfo(hConsole, TRUE, &sRectWindow);
+
+		COORD coord = { nScreenWidth, nScreenHeight };
+		if (!SetConsoleScreenBufferSize(hConsole, coord)) return;
+		if (!SetConsoleActiveScreenBuffer(hConsole)) return;
+
+		// Create the basic font
+		CONSOLE_FONT_INFOEX ConsoleFont;
+		ConsoleFont.cbSize = sizeof(ConsoleFont);
+		ConsoleFont.nFont = 0;
+		ConsoleFont.dwFontSize.X = 5;
+		ConsoleFont.dwFontSize.Y = 5;
+		ConsoleFont.FontFamily = FF_DONTCARE;
+		ConsoleFont.FontWeight = FW_NORMAL;
+
+		// Set the window size.
+		sRectWindow = { 0, 0, (short)nScreenWidth - 1, (short)nScreenHeight - 1 };
+		if (!SetConsoleWindowInfo(hConsole, TRUE, &sRectWindow)) return;
+
+	}
+
 	GameEngine()
 	{
 		// Create the buffer which we use to draw onto.
 		ScreenBuffer = new CHAR_INFO[nScreenWidth * nScreenHeight];
+
+		// Grab the console.
+		hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 	}
 
 	~GameEngine()
@@ -64,6 +96,10 @@ public:
 		// Remove the buffer when we are done.
 		delete[] ScreenBuffer;
 	}
-protected:
+private:
 	CHAR_INFO* ScreenBuffer;
+	HANDLE hConsole;
+	SMALL_RECT sRectWindow;
+
+protected:
 };
