@@ -63,7 +63,7 @@ public:
 		sRectWindow = { 0, 0, 1, 1 };
 		SetConsoleWindowInfo(hConsole, TRUE, &sRectWindow);
 
-		COORD coord = { nScreenWidth, nScreenHeight };
+		COORD coord = { (short)nScreenWidth, (short)nScreenHeight };
 		if (!SetConsoleScreenBufferSize(hConsole, coord)) return;
 		if (!SetConsoleActiveScreenBuffer(hConsole)) return;
 
@@ -75,20 +75,32 @@ public:
 		ConsoleFont.dwFontSize.Y = 5;
 		ConsoleFont.FontFamily = FF_DONTCARE;
 		ConsoleFont.FontWeight = FW_NORMAL;
+		wcscpy_s(ConsoleFont.FaceName, L"Consolas");
 
 		// Set the window size.
 		sRectWindow = { 0, 0, (short)nScreenWidth - 1, (short)nScreenHeight - 1 };
 		if (!SetConsoleWindowInfo(hConsole, TRUE, &sRectWindow)) return;
 
+		// Enable mouse input.
+		if (!SetConsoleMode(hConsole, ENABLE_EXTENDED_FLAGS | ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT)) return;
+
+		// Add this later for a closing method.
+		//SetConsoleCtrlHandler();
 	}
 
 	GameEngine()
 	{
 		// Create the buffer which we use to draw onto.
 		ScreenBuffer = new CHAR_INFO[nScreenWidth * nScreenHeight];
+		memset(ScreenBuffer, 0, sizeof(CHAR_INFO) * nScreenWidth * nScreenHeight);
 
 		// Grab the console.
 		hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
+		// Initialize rendering
+		Setup();
+
+		Draw(5, 5, EWHITE);
 	}
 
 	~GameEngine()
@@ -96,10 +108,26 @@ public:
 		// Remove the buffer when we are done.
 		delete[] ScreenBuffer;
 	}
+
+	void Draw(int x, int y, short col = 0x000F)
+	{
+		if (x >= 0 && x < nScreenWidth && y >= 0 && y < nScreenHeight)
+		{
+			ScreenBuffer[y * nScreenWidth + x].Attributes = col;
+			ScreenBuffer[y * nScreenWidth + x].Char.UnicodeChar = 0x2588;
+		}
+	}
 private:
 	CHAR_INFO* ScreenBuffer;
 	HANDLE hConsole;
 	SMALL_RECT sRectWindow;
 
+	void Setup()
+	{
+		while (true)
+		{
+			WriteConsoleOutput(hConsole, ScreenBuffer, { (short)nScreenWidth, (short)nScreenHeight }, { 0,0 }, &sRectWindow);
+		}
+	}
 protected:
 };
